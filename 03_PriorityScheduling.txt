@@ -1,0 +1,99 @@
+import java.util.Scanner;
+
+public class PriorityScheduling {
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+
+        System.out.println("*** Priority Scheduling (Preemptive) ***");
+        System.out.print("Enter number of processes: ");
+        int n = sc.nextInt();
+
+        int[] process = new int[n];
+        int[] arrivalTime = new int[n];
+        int[] burstTime = new int[n];
+        int[] burstTimeCopy = new int[n];
+        int[] priority = new int[n + 1];
+        int[] completionTime = new int[n];
+        int[] waitingTime = new int[n];
+        int[] turnaroundTime = new int[n];
+
+        for (int i = 0; i < n; i++) {
+            process[i] = i + 1;
+            System.out.print("Enter Arrival Time for process " + process[i] + ": ");
+            arrivalTime[i] = sc.nextInt();
+            System.out.print("Enter Burst Time for process " + process[i] + ": ");
+            burstTime[i] = sc.nextInt();
+            System.out.print("Enter Priority for process " + process[i] + ": ");
+            priority[i] = sc.nextInt();
+        }
+
+        for (int i = 0; i < n - 1; i++) {
+            for (int j = i + 1; j < n; j++) {
+                if (arrivalTime[i] > arrivalTime[j] ||
+                    (arrivalTime[i] == arrivalTime[j] && priority[j] < priority[i])) {
+                    int temp = process[i];
+                    process[i] = process[j];
+                    process[j] = temp;
+
+                    temp = arrivalTime[i];
+                    arrivalTime[i] = arrivalTime[j];
+                    arrivalTime[j] = temp;
+
+                    temp = burstTime[i];
+                    burstTime[i] = burstTime[j];
+                    burstTime[j] = temp;
+
+                    temp = priority[i];
+                    priority[i] = priority[j];
+                    priority[j] = temp;
+                }
+            }
+        }
+
+        System.arraycopy(burstTime, 0, burstTimeCopy, 0, n);
+        priority[n] = Integer.MAX_VALUE;
+
+        int completed = 0, currentTime = 0;
+
+        while (completed < n) {
+            int idx = n;
+            for (int i = 0; i < n; i++) {
+                if (arrivalTime[i] <= currentTime && burstTime[i] > 0 && priority[i] < priority[idx]) {
+                    idx = i;
+                }
+            }
+
+            if (idx == n) {
+                currentTime++;
+                continue;
+            }
+
+            burstTime[idx]--;
+            currentTime++;
+
+            if (burstTime[idx] == 0) {
+                completed++;
+                completionTime[idx] = currentTime;
+                turnaroundTime[idx] = completionTime[idx] - arrivalTime[idx];
+                waitingTime[idx] = turnaroundTime[idx] - burstTimeCopy[idx];
+            }
+        }
+
+        double totalWaiting = 0, totalTurnaround = 0;
+        System.out.println("\nProcess\tArrival\tBurst\tPriority\tCompletion\tTurnaround\tWaiting");
+
+        for (int i = 0; i < n; i++) {
+            totalWaiting += waitingTime[i];
+            totalTurnaround += turnaroundTime[i];
+            System.out.printf("P%-6d\t%-7d\t%-5d\t%-8d\t%-10d\t%-10d\t%-7d\n",
+                    process[i], arrivalTime[i], burstTimeCopy[i], priority[i],
+                    completionTime[i], turnaroundTime[i], waitingTime[i]);
+        }
+
+        System.out.printf("\nAverage Waiting Time: %.2f\n", totalWaiting / n);
+        System.out.printf("Average Turnaround Time: %.2f\n", totalTurnaround / n);
+
+        sc.close();
+    }
+}

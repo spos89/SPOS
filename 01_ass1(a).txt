@@ -1,0 +1,266 @@
+import java.io.*;
+import java.util.*;
+
+
+public class AssemblerSimulator {
+
+    
+    static class Symbol {
+        String name;
+        int address; 
+        Symbol(String name, int address) {
+            this.name = name;
+            this.address = address;
+        }
+    }
+
+    static class Literal {
+        String value;
+        int address; 
+
+        Literal(String value) {
+            this.value = value;
+            this.address = -1;
+        }
+    }
+
+    
+    private static final Map<String, String[]> OPTAB = new LinkedHashMap<>();
+
+    static {
+        OPTAB.put("STOP", new String[]{"IS", "00"});
+        OPTAB.put("ADD", new String[]{"IS", "01"});
+        OPTAB.put("SUB", new String[]{"IS", "02"});
+        OPTAB.put("MULT", new String[]{"IS", "03"});
+        OPTAB.put("MOVER", new String[]{"IS", "04"});
+        OPTAB.put("MOVEM", new String[]{"IS", "05"});
+        OPTAB.put("COMP", new String[]{"IS", "06"});
+        OPTAB.put("BC", new String[]{"IS", "07"});
+        OPTAB.put("DIV", new String[]{"IS", "08"});
+        OPTAB.put("READ", new String[]{"IS", "09"});
+        OPTAB.put("PRINT", new String[]{"IS", "10"});
+        OPTAB.put("DS", new String[]{"DL", "01"});
+        OPTAB.put("DC", new String[]{"DL", "02"});
+        OPTAB.put("START", new String[]{"AD", "01"});
+        OPTAB.put("END", new String[]{"AD", "02"});
+        OPTAB.put("ORIGIN", new String[]{"AD", "03"});
+        OPTAB.put("EQU", new String[]{"AD", "04"});
+        OPTAB.put("LTORG", new String[]{"AD", "05"});
+    }
+
+    
+    private static final Set<String> MNEMONICS = new HashSet<>(OPTAB.keySet());
+
+    public static void main(String[] args) {
+        List<String> lines = readInputLines("inputfile.txt");
+
+        
+        List<Symbol> symTab = new ArrayList<>();
+        List<Literal> litTab = new ArrayList<>();
+        List<Integer> poolTab = new ArrayList<>();
+        poolTab.add(0); // first pool begins at index 0
+        int currentPoolStart = 0; // index in literal table where current pool starts
+        int LC = 0;
+
+        System.out.println("INPUT FILE CONTENT:\n");
+        for (String raw : lines) {
+            String line = raw.trim();
+            if (line.isEmpty()) continue;
+            System.out.println(line);
+
+            String[] tokens = line.split("\\s+");
+            int t = 0;
+
+            
+            if (tokens[t].equalsIgnoreCase("START")) {
+                if (tokens.length >= 2) {
+                    try {
+                        LC = Integer.parseInt(tokens[1]);
+                    } catch (NumberFormatException ignored) {
+                        LC = 0;
+                    }
+                }
+                continue;
+            }
+
+            
+            String label = null;
+            if (!tokens[t].startsWith("=") && !MNEMONICS.contains(tokens[t].toUpperCase())) {
+                label = tokens[t];
+                addOrUpdateSymbol(symTab, label, LC);
+                t++;
+                if (t >= tokens.length) continue;
+            }
+
+            String op = tokens[t].toUpperCase();
+
+            
+            if (op.equals("LTORG")) {
+                if (currentPoolStart < litTab.size()) {
+                    for (int i = currentPoolStart; i < litTab.size(); i++) {
+                        Literal L = litTab.get(i);
+                        if (L.address == -1) L.address = LC++;
+                    }
+                    currentPoolStart = litTab.size();
+                    poolTab.add(currentPoolStart);
+                }
+                continue;
+            }
+
+            
+            if (op.equals("END")) {
+                if (currentPoolStart < litTab.size()) {
+                    for (int i = currentPoolStart; i < litTab.size(); i++) {
+                        Literal L = litTab.get(i);
+                        if (L.address == -1) L.address = LC++;
+                    }
+                    currentPoolStart = litTab.size();
+                    poolTab.add(currentPoolStart);
+                }
+                break;
+            }
+
+            
+            if (op.equals("DS")) {
+                int size = 1;
+                if (t + 1 < tokens.length) {
+                    try {
+                        size = Integer.parseInt(tokens[t + 1].replaceAll("[^0-9-]", ""));
+                    } catch (Exception ignored) {
+                        size = 1;
+                    }
+                }
+                LC += size;
+                continue;
+            }
+
+            
+            if (op.equals("DC")) {
+                LC += 1;
+                continue;
+            }
+
+            
+            if (tokens[t].startsWith("=")) {
+                String lit = tokens[t];
+                addLiteralIfNotExists(litTab, lit);
+                continue;
+            }
+
+            
+            for (int j = t + 1; j < tokens.length; j++) {
+                String operand = tokens[j].trim();
+                if (operand.isEmpty()) continue;
+                String[] parts = operand.split(",");
+                for (String part : parts) {
+                    part = part.trim();
+                    if (part.isEmpty()) continue;
+
+                    if (part.startsWith("=")) {
+                        addLiteralIfNotExists(litTab, part);
+                    } else {
+                        String cleaned = part.replaceAll(",", "").trim();
+                        if (!isQuotedConstant(cleaned) && !isNumeric(cleaned))
+                            addSymbolIfNotExists(symTab, cleaned);
+                    }
+                }
+            }
+
+            LC += 1;
+        }
+
+        
+        if (currentPoolStart < litTab.size()) {
+            for (int i = currentPoolStart; i < litTab.size(); i++) {
+                Literal L = litTab.get(i);
+                if (L.address == -1) {
+                    if (LC < 0) LC = 0;
+                    L.address = LC++;
+                }
+            }
+            currentPoolStart = litTab.size();
+            poolTab.add(currentPoolStart);
+        }
+
+        
+        System.out.println("\nOPTAB:");
+        System.out.println("Mnemonic\tClass\tOpcode");
+        for (Map.Entry<String, String[]> e : OPTAB.entrySet()) {
+            System.out.printf("%-8s\t%-4s\t%s%n", e.getKey(), e.getValue()[0], e.getValue()[1]);
+        }
+
+        System.out.println("\nSYMBOL TABLE:");
+        System.out.println("Index\tSymbol\tAddress");
+        for (int i = 0; i < symTab.size(); i++) {
+            Symbol s = symTab.get(i);
+            System.out.printf("%d\t%s\t%s%n", i, s.name, (s.address == -1 ? "-" : Integer.toString(s.address)));
+        }
+
+        System.out.println("\nLITERAL TABLE:");
+        System.out.println("Index\tLiteral\tAddress");
+        for (int i = 0; i < litTab.size(); i++) {
+            Literal l = litTab.get(i);
+            System.out.printf("%d\t%s\t%s%n", i, l.value, (l.address == -1 ? "-" : Integer.toString(l.address)));
+        }
+
+        System.out.println("\nPOOL TABLE:");
+        System.out.println("PoolIndex");
+        int last = -1;
+        for (int idx : poolTab) {
+            if (idx != last) {
+                System.out.println(idx);
+                last = idx;
+            }
+        }
+    }
+
+    
+    private static List<String> readInputLines(String filename) {
+        List<String> lines = new ArrayList<>();
+        File f = new File(filename);
+        if (f.exists()) {
+            try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+                String line;
+                while ((line = br.readLine()) != null) lines.add(line);
+                return lines;
+            } catch (IOException e) {
+            }
+        }
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(System.in))) {
+            String line;
+            while ((line = br.readLine()) != null) lines.add(line);
+        } catch (IOException ignored) {
+        }
+        return lines;
+    }
+
+    private static void addSymbolIfNotExists(List<Symbol> symTab, String name) {
+        if (findSymbolIndex(symTab, name) == -1) symTab.add(new Symbol(name, -1));
+    }
+
+    private static void addOrUpdateSymbol(List<Symbol> symTab, String name, int address) {
+        int idx = findSymbolIndex(symTab, name);
+        if (idx == -1) symTab.add(new Symbol(name, address));
+        else symTab.get(idx).address = address;
+    }
+
+    private static int findSymbolIndex(List<Symbol> symTab, String name) {
+        for (int i = 0; i < symTab.size(); i++)
+            if (symTab.get(i).name.equals(name)) return i;
+        return -1;
+    }
+
+    private static void addLiteralIfNotExists(List<Literal> litTab, String lit) {
+        for (Literal l : litTab)
+            if (l.value.equals(lit)) return;
+        litTab.add(new Literal(lit));
+    }
+
+    private static boolean isNumeric(String s) {
+        return s != null && s.matches("-?\\d+");
+    }
+
+    private static boolean isQuotedConstant(String s) {
+        return s.startsWith("'") && s.endsWith("'") && s.length() >= 2;
+    }
+}

@@ -1,0 +1,67 @@
+import java.util.Scanner;
+public class FIFO{
+    public static void main(String args[])   // fixed 'Main' → 'main'
+    {
+        Scanner sc=new Scanner(System.in);
+        int noofpage,capacity,index=0;
+        int fault=0,hit=0;
+        double hitratio=0,faultratio=0;
+        System.out.print("Enter the no.of pages:");
+        noofpage=sc.nextInt();
+        int pages[]=new int[noofpage];   // fixed array syntax
+        for(int i=0;i<noofpage;i++)
+        {
+            pages[i]=sc.nextInt();
+        }
+        System.out.println("Enter thr capacity:");  // fixed missing semicolon
+        capacity=sc.nextInt();
+        int frame[]=new int[capacity];   // fixed array syntax
+        int table[][]=new int[noofpage][capacity];
+        for(int i=0;i<capacity;i++)
+       {
+            frame[i]=-1;
+       }
+       System.out.println("--------------------------------------------------------");
+        for(int i=0;i<noofpage;i++)   // fixed 'inti'
+        {
+            int search=-1;
+            for(int j=0;j<capacity;j++)
+            {
+                if(frame[j]==pages[i])
+                {
+                    search=j;
+                    hit++;
+                    System.out.printf("%4s","H");
+                    break;
+                }
+            }
+
+            if(search==-1)   // fixed '=' to '=='
+            {
+                frame[index]=pages[i];
+                fault++;
+                System.out.printf("%4s","F");
+                index++;
+                if(index==capacity)
+                {
+                    index=0;
+                }
+            }
+            System.arraycopy(frame,0,table[i],0,capacity);
+        }
+        System.out.println("\n--------------------------------------------------------");  // fixed 'Sytem' + semicolon
+        for(int i=0;i<capacity;i++){
+            for(int j=0;j<noofpage;j++)  // fixed missing 'int'
+            {
+                System.out.printf("%3d",table[j][i]);
+            }
+            System.out.println();
+        }
+        System.out.println("--------------------------------------------------------");
+        faultratio=((double)fault/noofpage) * 100;
+        hitratio=((double)hit/noofpage) * 100;
+        System.out.println("Page fault:"+fault+"\n page hit:"+hit);
+        System.out.printf("hit ratio:%.2f\n fault ratio:%.2f",hitratio,faultratio);  // fixed printf
+        sc.close();
+    }
+}
